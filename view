@@ -1,0 +1,745 @@
+<template>
+  <div>
+    <el-drawer
+      accordion
+      title="执行明细"
+      :visible.sync="dialogVisible"
+      size="80%"
+      :before-close="reset2"
+    >
+      <div class="box" v-loading="load">
+        <!-- -->
+        <p>
+          <span class="span">任务编码：</span>
+          {{formData.flowCode}}
+          <!-- <span class="a" @click="handleMore">更多</span> -->
+        </p>
+        <p>
+          <span class="span">任务名称：</span>
+          {{formData.flowName}}
+        </p>
+        <p>
+          <span class="span">执行类型：</span>
+          {{formData.execType == 1?'手动执行':'自动执行'}}
+        </p>
+        <p>
+          <span class="span">开始时间：</span>
+          {{formData.startTime}}
+        </p>
+        <p>
+          <span class="span">结束时间：</span>
+          {{formData.endTime}}
+        </p>
+        <p>
+          <span class="span">任务状态：</span>
+          {{formData.execStatus}}
+        </p>
+        <p v-show="formData.execProgress">
+          <span class="span">执行进度：</span>
+          {{formData.execProgress}}
+        </p>
+
+        <p style="display:flex;">
+          <span style="min-width: 5rem;" class="span">执行日志：</span>
+          <!-- <span style="display: block;width: 94.5%;overflow-wrap: break-word;">{{deta.txt}}</span> -->
+
+          <el-timeline style="width: 100%">
+            <el-timeline-item
+              size="large"
+              placement="top"
+              v-for="(item, index) in taskExecLogs"
+              :key="index"
+              :icon="item.resultCode | codeTypeIcon"
+              :color="item.resultCode | codeTypeColor"
+            >
+              <el-card style="position: relative;">
+                <h4>{{item.taskNodeName}}</h4>
+                <!-- <p>王小虎 提交于 2018/4/12 20:46</p> -->
+                <p>开始时间：{{item.startTime}}</p>
+                <p>结束时间：{{item.endTime || ''}}</p>
+                <p>任务名称：{{formData2[index] && formData2[index].taskName || ''}}</p>
+
+                <div>
+                  <div v-if="item.resultCode === 'DONE'">
+                    <p
+                      style="display: flex;gap: 0.9375rem; align-items: center;"
+                      v-if="item.taskNodeName.indexOf('模型计算节点') !== -1 || item.taskNodeName.indexOf('时序加工节点') !== -1"
+                    >
+                      <el-button type="text" @click="handleSource({$index: index, row: item})">
+                        <!-- 源数据集 -->
+                        
+                        {{formData2[index] && formData2[index].sourceDataSetIdsourceDataSetName || "源数据集"}}
+                      </el-button>
+                      <svg
+                        t="1762259081097"
+                        class="icon"
+                        viewBox="0 0 1024 1024"
+                        version="1.1"
+                        xmlns="http://www.w3.org/2000/svg"
+                        p-id="3190"
+                        width="32"
+                        height="32"
+                      >
+                        <path
+                          d="M47.104 453.632q0-43.008 20.992-57.856t66.048-14.848q20.48 0 64.512 0.512t93.696 0.512 96.768 0.512 74.752 0.512q38.912 1.024 61.44-6.656t22.528-35.328q0-20.48 1.536-48.64t1.536-48.64q1.024-35.84 20.48-45.568t49.152 14.848q30.72 24.576 71.68 58.368t84.992 69.12 86.016 69.632 74.752 59.904q29.696 24.576 30.208 46.592t-28.16 45.568q-29.696 24.576-70.144 56.32t-83.968 65.536-85.504 67.072-74.752 58.88q-35.84 28.672-58.88 21.504t-22.016-44.032l0-24.576 0-29.696q0-15.36-0.512-30.208t-0.512-27.136q0-25.6-15.36-32.256t-41.984-6.656q-29.696 0-77.824-0.512t-100.352-0.512-101.376-0.512-79.872-0.512q-13.312 0-27.648-2.56t-26.112-9.728-18.944-20.992-7.168-37.376q0-27.648-0.512-53.248t0.512-57.344z"
+                          p-id="3191"
+                          fill="#1296db"
+                        />
+                      </svg>
+                      <el-button type="text" @click="handleModel({$index: index, row: item})">
+                        <!-- 计算模型 -->
+                        {{formData2[index] && formData2[index].modelIdModelName || "计算模型"}}
+                      </el-button>
+                      <svg
+                        t="1762259081097"
+                        class="icon"
+                        viewBox="0 0 1024 1024"
+                        version="1.1"
+                        xmlns="http://www.w3.org/2000/svg"
+                        p-id="3190"
+                        width="32"
+                        height="32"
+                      >
+                        <path
+                          d="M47.104 453.632q0-43.008 20.992-57.856t66.048-14.848q20.48 0 64.512 0.512t93.696 0.512 96.768 0.512 74.752 0.512q38.912 1.024 61.44-6.656t22.528-35.328q0-20.48 1.536-48.64t1.536-48.64q1.024-35.84 20.48-45.568t49.152 14.848q30.72 24.576 71.68 58.368t84.992 69.12 86.016 69.632 74.752 59.904q29.696 24.576 30.208 46.592t-28.16 45.568q-29.696 24.576-70.144 56.32t-83.968 65.536-85.504 67.072-74.752 58.88q-35.84 28.672-58.88 21.504t-22.016-44.032l0-24.576 0-29.696q0-15.36-0.512-30.208t-0.512-27.136q0-25.6-15.36-32.256t-41.984-6.656q-29.696 0-77.824-0.512t-100.352-0.512-101.376-0.512-79.872-0.512q-13.312 0-27.648-2.56t-26.112-9.728-18.944-20.992-7.168-37.376q0-27.648-0.512-53.248t0.512-57.344z"
+                          p-id="3191"
+                          fill="#1296db"
+                        />
+                      </svg>
+                      <el-button
+                        type="text"
+                        @click="handleSource({$index: index, row: item}, '目标数据集')"
+                      >
+                        <!-- 目标数据集 -->
+                        {{formData2[index] && formData2[index].targetDataSetIdtargetDataSetName || "目标数据集"}}
+                      </el-button>
+                    </p>
+                    <p
+                      style="display: flex;gap: 0.9375rem; align-items: center;"
+                      v-else-if="item.taskNodeName.indexOf('预警模型节点') !== -1"
+                    >
+                      <el-button type="text" @click="handleDetail(item)">查看明细</el-button>
+                    </p>
+                    <p
+                      v-else
+                      style="font-size: 14px;text-align: center;line-height: 1.6875rem;margin: 0;color: rgba(0, 0, 0,0.7);"
+                    >暂无可查看内容</p>
+                  </div>
+
+                  <el-descriptions
+                    v-if="item.resultCode !== 'ERROR'"
+                    class="margin-top"
+                    :column="3"
+                    border
+                  >
+                    <el-descriptions-item>
+                      <template slot="label">
+                        <!-- <i class="el-icon-location-outline"></i> -->
+                        已读取
+                      </template>
+                      <i
+                        class="el-icon-loading"
+                        style="font-size: 14px;color: #1296db;"
+                        v-if="loading3"
+                      ></i>
+                      {{tabNode[item.taskNodeId]&& tabNode[item.taskNodeId].readNumber || tabNode[item.taskNodeId]&& tabNode[item.taskNodeId].readerNum || ''}}
+                    </el-descriptions-item>
+                    <el-descriptions-item>
+                      <template slot="label">
+                        <!-- <i class="el-icon-user"></i> -->
+                        已处理
+                      </template>
+                      <i
+                        class="el-icon-loading"
+                        style="font-size: 14px;color: #1296db;"
+                        v-if="loading3"
+                      ></i>
+                      {{tabNode[item.taskNodeId]&& tabNode[item.taskNodeId].progressNumber || tabNode[item.taskNodeId]&& tabNode[item.taskNodeId].processorNum || ''}}
+                    </el-descriptions-item>
+                    <el-descriptions-item>
+                      <template slot="label">
+                        <!-- <i class="el-icon-mobile-phone"></i> -->
+                        已写入
+                      </template>
+                      <i
+                        class="el-icon-loading"
+                        style="font-size: 14px;color: #1296db;"
+                        v-if="loading3"
+                      ></i>
+                      {{tabNode[item.taskNodeId]&& tabNode[item.taskNodeId].writeNumber || tabNode[item.taskNodeId]&& tabNode[item.taskNodeId].writerNum || ''}}
+                    </el-descriptions-item>
+                    
+                  </el-descriptions>
+                  <p v-else>
+                    <span class="span">异常信息：</span>
+                    {{item.resultData.message || '暂无'}}
+                  </p>
+                </div>
+
+                <el-tag
+                  style="position: absolute;top: 0.9375rem;right: 0.9375rem;"
+                  :type="item.resultCode | codeType"
+                >{{item.resultCode | resultCode}}</el-tag>
+              </el-card>
+            </el-timeline-item>
+          </el-timeline>
+        </p>
+        <p>
+          <span class="span">异常信息：</span>
+          {{formData.errorMsg || '暂无'}}
+        </p>
+      </div>
+
+      <span class="footer">
+        <el-button @click="dialogVisible = false">取 消</el-button>
+        <!-- <el-button type="primary" :loading="loading" @click="submitForm('formData')">确 定</el-button> -->
+      </span>
+    </el-drawer>
+
+    <el-drawer
+      destroy-on-close
+      :title="title"
+      :visible.sync="dialogVisible2"
+      size="80%"
+      :before-close="reset"
+    >
+      <div style="height: 100%;">
+        <div class="panel main">
+          <dataSetDetails :node="nodeData" />
+          <el-tabs v-model="activeName">
+            <!-- <el-tab-pane label="属性" name="dataList" /> -->
+            <el-tab-pane label="数据" name="dataSetValue" />
+            <el-tab-pane label="数据质量" name="dataQuality" />
+            <!-- <el-tab-pane v-if="node.parentId != 0" label="映射规则" name="mapping" /> -->
+          </el-tabs>
+          <component
+            v-if="nodeData"
+            :is="activeName"
+            :node="nodeData"
+            class="tabPanel"
+            @status="status"
+          />
+        </div>
+      </div>
+    </el-drawer>
+
+    <el-drawer
+      destroy-on-close
+      title="模型数据集"
+      :visible.sync="dialogVisible4"
+      size="80%"
+      :before-close="reset"
+    >
+      <div style="height: 100%;">
+        <div class="panel2 main2" style="height: 100%;">
+          <el-tabs v-model="activeName2">
+            <el-tab-pane label="数据输入" name="dataList" />
+            <el-tab-pane label="数据输出" name="dataSetValue2" />
+            <el-tab-pane label="处理规则" name="modelRule" />
+            <el-tab-pane label="数据加工" name="dataSetDetails2" />
+          </el-tabs>
+          <component v-if="node" :is="activeName2" :node="node" class="tabPanel tabPanel2" />
+          <!-- :height="100"  -->
+        </div>
+      </div>
+    </el-drawer>
+    <view2 ref="view2" />
+  </div>
+</template>
+<script>
+import {
+  update,
+  insert,
+  getPaged,
+  getPaged2,
+  getPaged3,
+  getTask
+} from "@/request/api/workFlow.js";
+import Adder from "@/components/regionCascader.vue";
+import dataSetDetails from "@/views/dataSet/module/dataSetDetails.vue";
+import dataSetValue from "@/views/dataSet/module/dataSetValue.vue";
+import mapping from "@/views/dataSet/module/mapping/index.vue";
+import dataQuality from "@/views/dataSet/module/dataQuality.vue";
+
+import dataList from "@/views/computModel/module/dataList.vue";
+import dataSetDetails2 from "@/views/computModel/module/dataSetDetails.vue";
+import dataSetValue2 from "@/views/computModel/module/dataSetValue.vue";
+import modelRule from "@/views/computModel/module/modelRule.vue";
+
+import view2 from "@/views/WarnModeCofing/view.vue";
+export default {
+  components: {
+    Adder,
+    dataSetDetails,
+    dataSetValue,
+    mapping,
+    dataQuality,
+
+    dataList,
+    dataSetDetails2,
+    dataSetValue2,
+    modelRule,
+    view2
+  },
+  filters: {
+    resultCode: function(value) {
+      if (value === "WAIT") {
+        return "运行中";
+      } else if (value === "ERROR") {
+        return "异常";
+      } else if (value === "DONE") {
+        return "完成";
+      }
+    },
+    codeType: function(value) {
+      if (value === "WAIT") {
+        return "";
+      } else if (value === "ERROR") {
+        return "danger";
+      } else if (value === "DONE") {
+        return "success";
+      }
+    },
+    codeTypeColor: function(value) {
+      if (value === "WAIT") {
+        return "#fff";
+      } else if (value === "ERROR") {
+        return "#fff";
+      } else if (value === "DONE") {
+        return "#fff";
+      }
+    },
+    codeTypeIcon: function(value) {
+      if (value === "WAIT") {
+        return "el-icon-loading";
+      } else if (value === "ERROR") {
+        return "el-icon-error";
+      } else if (value === "DONE") {
+        return "el-icon-success";
+      }
+    }
+  },
+  data() {
+    return {
+      loading3: false,
+      tabNode: {},
+      activeName2: "dataList",
+      node: {
+        id: 4,
+        parentId: 2,
+        weight: 3,
+        name: "主诉症状处理测试",
+        modelType: 1
+      },
+      tabObjAll: {},
+
+      nodeData: {
+        id: 245105,
+        dexOrgId: 64,
+        dexSourceId: 1,
+        parentId: 10133,
+        commonId: 10133,
+        name: "门诊病案信息21年至今",
+        totalDataSetCount: 1,
+        directDataSetCount: 1,
+        treeType: 4,
+        children: []
+      },
+      activeName: "dataSetValue",
+      dialogVisible2: false,
+      dialogVisible3: false,
+      dialogVisible4: false,
+
+      deta: {
+        time: "",
+        statesName: "",
+        timeEnd: "",
+        txt: ""
+      },
+      title: "",
+      load: false,
+      isEdit: false,
+      dialogVisible: false,
+      loading: false,
+      formData: {
+        // areaCodes: '',
+        // desentType: 1,
+        // status: 2,
+        // paramData: {}
+      },
+      formData2: {},
+      stepsVal: 0,
+      yangaiList: [
+        { one: "", two: "", select: "" },
+        { one: "", two: "", select: "" }
+      ],
+      rules: {
+        orgCode: [
+          { required: true, message: "请输入机构编码", trigger: "blur" },
+          {
+            min: 2,
+            max: 100,
+            message: "长度在 2 到 100 个字符",
+            trigger: "blur"
+          }
+        ],
+        orgName: [
+          { required: true, message: "请输入机构名称", trigger: "blur" },
+          {
+            min: 2,
+            max: 100,
+            message: "长度在 2 到 100 个字符",
+            trigger: "blur"
+          }
+        ],
+        orgShortname: [
+          { required: true, message: "请输入机构简称", trigger: "blur" },
+          {
+            min: 2,
+            max: 100,
+            message: "长度在 2 到 100 个字符",
+            trigger: "blur"
+          }
+        ],
+        fieldCode: [
+          { required: true, message: "请选择敏感字段类型", trigger: "change" }
+        ],
+        usageScene: [
+          { required: true, message: "请选择应用场景", trigger: "change" }
+        ],
+        districtCode: [
+          { required: true, message: "请选择行政区划", trigger: "blur" }
+        ],
+        "paramData.encryptkey": [
+          { required: true, message: "请选择加密算法-密钥", trigger: "change" }
+        ],
+        "paramData.encrypt": [
+          { required: true, message: "请选择加密算法", trigger: "change" }
+        ],
+        "paramData.salt": [
+          { required: true, message: "请输入加盐值", trigger: "blur" }
+        ],
+        "paramData.end": [
+          { required: true, message: "请输入掩盖方式", trigger: "blur" }
+        ],
+        status: [{ required: true, message: "请选择状态", trigger: "change" }],
+        cron: [
+          { required: true, message: "请输入Cron", trigger: ["change", "blur"] }
+        ],
+        dd: [{ required: true, message: "请选择执行方式", trigger: "change" }]
+      },
+      taskExecLogs: []
+    };
+  },
+  methods: {
+    handleDetail(row) {
+      // this.title = '源数据集'
+      this.dialogVisible3 = true;
+      // this.nodeData = {...row.resultData, id: row.resultData.originalDataSetId }
+      this.$refs.view2.getView(row.resultData);
+    },
+    handleSource(scope, title) {
+      // this.$refs.view2.getView(row.resultData)
+      this.title = title || "源数据集";
+      this.activeName = "dataSetValue";
+      const id = title
+        ? this.formData2[scope.$index].targetDataSetId || ""
+        : this.formData2[scope.$index].sourceDataSetId || "";
+      console.log(id, "id", this.formData2[scope.$index]);
+      // scope.row.resultData.originalDataSetId
+      this.nodeData = { ...scope.row.resultData, id };
+      setTimeout(() => {
+        this.dialogVisible2 = true;
+      });
+    },
+    // handleTarget(row) {
+    //   this.title = '目标数据集'
+    //   this.dialogVisible2 = true
+    //   this.nodeData = {...row.resultData, id: row.resultData.targetDataSetId }
+    // },
+    handleModel(scope) {
+      (this.activeName2 = "dataList"), console.log(scope, "handleModel");
+      this.node = {
+        ...scope.row.resultData,
+        id: this.formData2[scope.$index].modelId || ""
+      };
+
+      setTimeout(() => {
+        this.dialogVisible4 = true;
+      });
+    },
+    status(status) {
+      this.$refs.dataTree.setStatus("");
+      // this.node = { ...this.node, ...status}
+      // console.log(status, 'status');
+    },
+    handleMore() {
+      console.log("handleMore");
+      window.parent.postMessage("handleMore/processingManageMonitor", "*");
+
+      // const baseRouter = window.microApp.router.getBaseAppRouter()
+      // baseRouter.replace('/app4/processingManageMonitor')
+      this.$router.push({
+        path: "/processingManageMonitor",
+        query: {
+          flowId: this.formData.flowId
+        }
+      });
+      // window.open(`/workFlow/detailsPage?flowId=${this.formData.flowId}`)
+    },
+
+    show(data, title, isEdit) {
+      console.log(isEdit);
+      this.title = title;
+      this.isEdit = isEdit;
+      this.dialogVisible = true;
+      if (this.isEdit === true) {
+        this.getInfo(data);
+      } else {
+        this.reset();
+      }
+    },
+
+    getInfo(data) {
+      const self = this;
+      this.load = true;
+      // getPaged({ flowId: data.flowId }).then(res => {
+      //   self.formData = res.data || {};
+      //   // self.taskExecLogs = res.data.taskExecLogs ? res.data.taskExecLogs : []
+      const logId = data.logId
+        getPaged2({ logId }).then(res2 => {
+          self.load = false;
+          self.formData = res2.data || {};
+          self.tabObjAll[logId] = res2.data || {};
+          try {
+            const taskExecLogs = res2.data.taskExecLogs
+              ? res2.data.taskExecLogs
+                  .map(item => ({
+                    ...item,
+                    resultData: JSON.parse(item.resultData || "{}")
+                  }))
+                  .filter(
+                    item =>
+                      item.taskNodeName !== "开始节点-startNode" &&
+                      item.taskNodeName !== "结束节点-endNode"
+                  )
+              : [];
+            self.taskExecLogs = taskExecLogs;
+            const https_ = [];
+            const formData2 = {};
+            taskExecLogs.forEach((item, index) => {
+              self.handleExpandChange(item, [item]);
+              if (item.taskId) {
+                https_.push(getTask({ taskId: item.taskId }));
+              } else {
+                formData2[index + ""] = {};
+              }
+            });
+            Promise.all(https_).then(res => {
+              res.forEach((item, index) => {
+                formData2[index + ""] = item.data || {};
+              });
+              console.log(formData2);
+              self.formData2 = formData2;
+            });
+          } catch (err) {
+            self.taskExecLogs = [];
+          }
+        });
+        // self.formData.districtCode = self.formData.districtCode ? self.formData.districtCodesName : []
+        // self.formData.districtCode = self.formData.districtCode ? JSON.parse(self.formData.districtCode) : []
+      // });
+    },
+    handleExpandChange(row, expandedRows) {
+      console.log(row, expandedRows);
+      const self = this;
+      self.loading3 = true;
+      if (
+        expandedRows.length &&
+        row.resultCode !== "ERROR" &&
+        !self.tabNode[row.taskNodeId]
+      ) {
+        getPaged3({
+          taskNodeId: row.taskNodeId,
+          flowId: self.formData.flowId
+        }).then(res => {
+          self.loading3 = false;
+          let result 
+          try {
+            const rrr = row.resultData || {};
+            result = {...(rrr.result || {}),...res.data} || {...row};
+          } catch (err) {
+            console.log(err, 'err============');
+            result = {...res.data};
+          }
+          console.log(result, 'result============');
+          self.tabNode[row.taskNodeId] = result;
+        });
+      } else {
+        self.loading3 = false;
+      }
+    },
+    reset(done) {
+      done && done();
+    },
+    reset2(done) {
+      // this.$refs.formData.resetFields()
+      this.formData = {
+        // desentType: 1,
+        // status: 2,
+        // paramData: {}
+      };
+      this.tabNode = {};
+      //  this.formData2 = {}
+
+      this.tabObjAll = {};
+      done && done();
+    }
+  }
+};
+</script>
+<style lang="scss" scoped>
+::v-deep.el-tabs {
+  .el-tabs__header {
+    background-color: #fff;
+    .el-tabs__nav-wrap {
+      padding: 0rem 0.9375rem;
+    }
+  }
+}
+.panel {
+  height: 100%;
+  overflow: hidden;
+
+  &.main {
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+    .tabPanel {
+      flex: 1;
+      min-height: calc(100% - 8.75rem);
+    }
+  }
+}
+.main2 {
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  .tabPanel2 {
+    flex: 0;
+    height: calc(100% - 3.4375rem);
+    // display: block !important;
+  }
+}
+::v-deep .tabPanel2 .search {
+  padding-bottom: 0 !important;
+  margin-bottom: 0rem !important;
+}
+::v-deep .tabPanel2 .table {
+  padding-top: 0 !important;
+  // display: block !important;
+  flex: 0 !important;
+}
+
+.margin-top {
+  padding: 0.9375rem;
+}
+.box {
+  font-size: 14px;
+  margin: 0.9375rem;
+  overflow: auto;
+
+  p {
+    color: #303133;
+    line-height: 1.5rem;
+    margin-bottom: 0.625rem;
+  }
+  .span {
+    color: #72767b;
+  }
+}
+::v-deep.el-drawer__wrapper {
+  .el-drawer__body {
+    display: flex;
+    flex-direction: column;
+    .box {
+      .el-form {
+        width: 31.25rem;
+        flex: 1;
+        padding: 1.25rem;
+        margin: 0rem auto;
+      }
+    }
+
+    .footer {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      padding: 0.625rem;
+      border-top: 0.0625rem solid #d2d2d2;
+    }
+  }
+}
+.titleContent {
+  display: flex;
+  padding: 0 0.9375rem;
+  justify-content: space-between;
+  align-items: center;
+}
+.flow {
+  width: 100%;
+  height: calc(100vh - 7.5rem);
+  border: 0.0625rem solid #d2d2d2;
+}
+.box {
+  padding: 0.9375rem;
+  height: 100%;
+}
+.a {
+  color: #409eff;
+  cursor: pointer;
+  margin-left: 0.9375rem;
+  // float: right;
+}
+::v-deep(.el-timeline-item__icon) {
+  font-size: 1.5rem !important;
+}
+::v-deep(.el-icon-success) {
+  color: #67c23a !important;
+}
+
+::v-deep(.el-icon-error) {
+  color: #f56c6c !important;
+}
+
+::v-deep(.el-icon-loading) {
+  color: #409eff !important;
+}
+::v-deep(.el-timeline-item__node) {
+  // font-size: 24px !important;
+  margin-top: 1rem;
+}
+::v-deep(.el-timeline-item__tail) {
+  top: 1rem;
+}
+</style>
+
+<style >
+.titleContent .title {
+  font-size: 14px;
+  color: #72767b;
+}
+.titleContent .el-steps {
+  width: 31.25rem;
+  background: #fff !important;
+  padding: 0;
+}
+
+::v-deep .tabPanel2 .dataListWrap,
+::v-deep .tabPanel2 > .table {
+  min-height: calc(100% - 3.4375rem) !important;
+}
+.main2 .tabPanel2 .table {
+  min-height: calc(100vh - 11.25rem) !important;
+}
+</style>
