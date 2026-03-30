@@ -430,6 +430,11 @@ function ConnectionLineFlow () {
   const reactFlowRef = React.useRef(true);
   const reactFlowWrapperRef = React.useRef(null);
   const reactFlowInstanceRef = React.useRef(null);
+  // Refs to always hold the latest nodes/edges without causing re-renders
+  const nodesRef = useRef(nodes);
+  const edgesRef = useRef(edges);
+  // Ref to hold the latest callbacks so nodeTypes wrappers can be stable
+  const callbacksRef = useRef({});
 
   const [tableSelect, setTableSelect] = useState([]);
 
@@ -442,6 +447,10 @@ function ConnectionLineFlow () {
 
   const flowId = useMemo(() => getFlowId(), []);
   const currentFlowId = flowDetail?.flowId || flowId;
+
+  // Keep refs in sync with latest state so callbacks can read them without deps
+  nodesRef.current = nodes;
+  edgesRef.current = edges;
 
 
  
@@ -741,8 +750,8 @@ function ConnectionLineFlow () {
     if (filteredChanges.length > 0) {
       console.log('onEdgesChange: ', filteredChanges);
       
-      // Calculate updated edges
-      const updatedEdges = applyEdgeChanges(filteredChanges, edges);
+      // Calculate updated edges using the ref so we don't depend on the edges state directly
+      const updatedEdges = applyEdgeChanges(filteredChanges, edgesRef.current);
       
       // Update edges state
       setEdges(updatedEdges);
@@ -750,7 +759,7 @@ function ConnectionLineFlow () {
       // Save flow after edge changes
       try {
         const flowData = buildFlowSubmitPayload({
-          nodes,
+          nodes: nodesRef.current,
           edges: updatedEdges,
           flowId: currentFlowId,
         });
@@ -760,7 +769,7 @@ function ConnectionLineFlow () {
         console.error('Error saving flow after edge changes:', error);
       }
     }
-  }, [drawerOpen, nodes, edges, currentFlowId]);
+  }, [drawerOpen, currentFlowId]);
 
   const addNode = React.useCallback(async (node, sourceNodeId, nodes2) => {
     // compute id and position (same logic as before)
@@ -768,7 +777,7 @@ function ConnectionLineFlow () {
     const offset = 120; // vertical shift when collision (changed from 80 to 120)
     const tolerance = 48; // consider nodes colliding within this px
     const nodeWidth = 180; // Node width including padding
-    const currentNodes = nodes2 || nodes;
+    const currentNodes = nodes2 || nodesRef.current;
 
     // starting position
     let startPos;
@@ -857,10 +866,10 @@ function ConnectionLineFlow () {
       // 保存流程：在本地状态更新后，构建提交负载并调用保存接口
       try {
         const nodesNext = [...list];
-        let edgesNext = edges;
+        let edgesNext = edgesRef.current;
         if (sourceNodeId && sourceNode && sourceNode.id !== newNode.id) {
           const maybeEdge = { id: `${sourceNode.id}->${newNode.id}`, source: sourceNode.id, target: newNode.id, type: 'custom-edge' };
-          edgesNext = [...edges, maybeEdge];
+          edgesNext = [...edgesRef.current, maybeEdge];
         }
         console.log('addNode: persisting flow', { nodes: nodesNext.length, edges: edgesNext.length });
         // buildFlowSubmitPayload({ nodes: nodesNext, edges: edgesNext, flowId: currentFlowId });
@@ -871,7 +880,7 @@ function ConnectionLineFlow () {
 
       return list;
     });
-  }, [nodes, edges, currentFlowId]);
+  }, [currentFlowId]);
 
   const updateNode = useCallback(async (id, partial) => {
     setNodes((nds) => nds.map((n) => {
@@ -963,7 +972,7 @@ function ConnectionLineFlow () {
     if (nextNode) {
       addNode(nextNode);
     }
-  }, [addNode, createNodeByType, nodes]);
+  }, [addNode, createNodeByType]);
 
   const handleInit = useCallback((instance) => {
     reactFlowInstanceRef.current = instance;
@@ -1175,30 +1184,44 @@ function ConnectionLineFlow () {
     fetchFlowLog(nodeId);
   }, [fetchFlowLog]);
 
-  const StartWrapper = useCallback((props) => <CustomNodeStart {...props} onAddNode={addNode} type={props.type} onCopyNode={() => copyNode(props)} onDeleteNode={() => deleteNode(props)} />, [addNode, copyNode, deleteNode]);
+  // Keep callbacksRef up to date so stable nodeType wrappers can always call the latest versions.
+  // This is safe because the wrappers read callbacksRef.current at call-time, not at creation-time,
+  // so they always invoke the latest callback without causing nodeTypes to change reference.
+  callbacksRef.current = { addNode, updateNode, copyNode, deleteNode, runNode, openLogModal };
 
-  const wrap = useCallback((Comp) => (props) => <Comp {...props}  onAddNode={addNode} onUpdateNode={updateNode} type={props.type} onCopyNode={() => copyNode(props)} onDeleteNode={() => deleteNode(props)} onRunNode={() => runNode(props.id, props.data, props.type)} onOpenLogModal={() => openLogModal(props.data?.nodeId || props.id)} />, [addNode, updateNode, copyNode, deleteNode, runNode, openLogModal]);
-
-  const nodeTypes = useMemo(() => ( {
-    // custom: wrap(CustomNode),
-    start: StartWrapper,
-    // LLM: wrap(CustomNodeLLM),
-    end: wrap(CustomNodeEnd),
-    sourceDataset: wrap(CustomNodeDefault),
-    mysqlTableSource: wrap(CustomNodeDefault),
-    mongoCollectionSource: wrap(CustomNodeDefault),
-    fileSource: wrap(CustomNodeDefault),
-    nlpProcess: wrap(CustomNodeDefault),
-    fieldTransform: wrap(CustomNodeDefault),
-    validateProcess: wrap(CustomNodeDefault),
-    targetDataset: wrap(CustomNodeDefault),
-    mysqlTableTarget: wrap(CustomNodeDefault),
-    mongoCollectionTarget: wrap(CustomNodeDefault),
-    fileTarget: wrap(CustomNodeDefault),
-    scriptProcess: wrap(CustomNodeDefault),
-    ifElseProcess: wrap(CustomNodeDefault),
-    llmProcess: wrap(CustomNodeDefault),
-  }), [ addNode, updateNode, copyNode, deleteNode, runNode, openLogModal ]);
+  // nodeTypes is created once (empty deps) so its reference never changes, preventing ReactFlow
+  // from unmounting/remounting all nodes when callbacks change during drag.
+  const nodeTypes = useMemo(() => {
+    const StartWrapperStable = (props) => {
+      const cbs = callbacksRef.current;
+      return <CustomNodeStart {...props} onAddNode={cbs.addNode} type={props.type} onCopyNode={() => cbs.copyNode(props)} onDeleteNode={() => cbs.deleteNode(props)} />;
+    };
+    const wrapStable = (Comp) => (props) => {
+      const cbs = callbacksRef.current;
+      return <Comp {...props} onAddNode={cbs.addNode} onUpdateNode={cbs.updateNode} type={props.type} onCopyNode={() => cbs.copyNode(props)} onDeleteNode={() => cbs.deleteNode(props)} onRunNode={() => cbs.runNode(props.id, props.data, props.type)} onOpenLogModal={() => cbs.openLogModal(props.data?.nodeId || props.id)} />;
+    };
+    return {
+      // custom: wrapStable(CustomNode),
+      start: StartWrapperStable,
+      // LLM: wrapStable(CustomNodeLLM),
+      end: wrapStable(CustomNodeEnd),
+      sourceDataset: wrapStable(CustomNodeDefault),
+      mysqlTableSource: wrapStable(CustomNodeDefault),
+      mongoCollectionSource: wrapStable(CustomNodeDefault),
+      fileSource: wrapStable(CustomNodeDefault),
+      nlpProcess: wrapStable(CustomNodeDefault),
+      fieldTransform: wrapStable(CustomNodeDefault),
+      validateProcess: wrapStable(CustomNodeDefault),
+      targetDataset: wrapStable(CustomNodeDefault),
+      mysqlTableTarget: wrapStable(CustomNodeDefault),
+      mongoCollectionTarget: wrapStable(CustomNodeDefault),
+      fileTarget: wrapStable(CustomNodeDefault),
+      scriptProcess: wrapStable(CustomNodeDefault),
+      ifElseProcess: wrapStable(CustomNodeDefault),
+      llmProcess: wrapStable(CustomNodeDefault),
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Memoize edgeTypes so its reference stays stable across renders.
   // Otherwise ReactFlow may treat a new object as a change and re-register edge types
