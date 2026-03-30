@@ -260,7 +260,10 @@ const NodeConfigDrawer = ({
       fetchTableData(dataSetId, 1, 9999999);
     }
   };
-
+   const userToken = sessionStorage.getItem('token') || {
+      token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhc3NvSWQiOjQsImV4cCI6MTc5MTcxNTQ2NCwicHJpbmNpcGFsIjoiMTUwMTAxMSIsInNpZCI6ImFjZmI5OTU3MTZlOTQxYTVhOTRkMDZhN2FjNzM0NDk1In0.L6TRPBPbhjxWVk-Gd0u_3syxDT6PxUzGODL5J9naDlQ',
+      refreshToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhc3NvSWQiOjQsImV4cCI6MTgyNzcxNTQ2NCwicHJpbmNpcGFsIjoiMTUwMTAxMSIsInNpZCI6ImFjZmI5OTU3MTZlOTQxYTVhOTRkMDZhN2FjNzM0NDk1In0.xADgCvvDJZDnfhM_XbQHU9BZhlZxJVg-mF18n09BY4M"
+   }; // 从会话存储获取 token
   return (
     <>
       <Drawer
@@ -860,6 +863,29 @@ const NodeConfigDrawer = ({
                   ))}
                 </Select>
               </Form.Item>
+
+              {tableTag?.length ? (
+                <>
+                  <p style={{ padding: '0 15px' }}>
+                    输出参数<span style={{ color: 'red' }}>*</span>
+                  </p>
+                  <p
+                    style={{
+                      display: 'flex',
+                      gap: '15px',
+                      padding: '0 15px',
+                      flexWrap: 'wrap',
+                      marginBottom: 15,
+                    }}
+                  >
+                    {tableTag.map((item) => (
+                      <Tag key={item} color="processing">
+                        {item}
+                      </Tag>
+                    ))}
+                  </p>
+                </>
+              ) : null}
             </Card>
           )}
           
@@ -946,6 +972,28 @@ const NodeConfigDrawer = ({
                   ))}
                 </Select>
               </Form.Item>
+              {tableTag?.length ? (
+                <>
+                  <p style={{ padding: '0 15px' }}>
+                    输出参数<span style={{ color: 'red' }}>*</span>
+                  </p>
+                  <p
+                    style={{
+                      display: 'flex',
+                      gap: '15px',
+                      padding: '0 15px',
+                      flexWrap: 'wrap',
+                      marginBottom: 15,
+                    }}
+                  >
+                    {tableTag.map((item) => (
+                      <Tag key={item} color="processing">
+                        {item}
+                      </Tag>
+                    ))}
+                  </p>
+                </>
+              ) : null}
             </Card>
           )}
           
@@ -1053,17 +1101,23 @@ const NodeConfigDrawer = ({
               >
                 <Upload
                   action={() => {
-                    const baseApi = process.env.VUE_APP_BASE_API === "/api" ? "/api" : location.origin + "/api";
-                    return baseApi + "/fss/file/form";
+                    const baseApi = location.origin + "/api";
+                    return baseApi + "/file/form";
                   }}
                   listType="file"
+                  headers={{
+                    authorization: userToken.token,
+                    refreshtoken: userToken.refreshToken,
+                  }}
                   maxCount={1}
                   accept=".xlsx,.xls"
                   onChange={(info) => {
+                    console.log('文件上传:', info);
+                    
                     if (info.file.status === 'done') {
                       message.success(`${info.file.name} 文件上传成功`);
                       // 保存文件路径到表单
-                      form.setFieldsValue({ filePath: info.file.response?.data?.filePath || '' });
+                      form.setFieldsValue({ filePath: info.file.response?.data?.fileId || '' });
                     } else if (info.file.status === 'error') {
                       message.error(`${info.file.name} 文件上传失败`);
                     }
@@ -1223,8 +1277,8 @@ const NodeConfigDrawer = ({
             </div>
           )}
 
-          {/* MySQL目标表字段映射 - 隐藏 */}
-          {/* {(selectedNode.type === 'mysqlTableTarget' || selectedNode.type === 'fileTarget') && (
+          {/* MySQL目标表字段映射 */}
+          {(selectedNode.type === 'mysqlTableTarget') && (
             <Card className="form-card-head" style={{ margin: 15 }}>
               <div className="title">字段映射</div>
               <Table

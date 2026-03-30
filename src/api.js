@@ -116,12 +116,6 @@ export const api = {
   }),
 
 
-  // 获取节点详情
-  getNodeDetail: (params) => request(`/etl/node/detail`, {
-    method: 'POST',
-    body: JSON.stringify(params),
-  }),
-
    // 节点更新
   updateNode: (params) => request(`/etl/node/update`, {
     method: 'POST',
@@ -153,7 +147,10 @@ export const api = {
   }),
 
   // 获取节点详情
-  getNodeDetail: (id) => request(`/etl/node/detail/${id}`),
+  getNodeDetail: (params) => request(`/etl/node/detail`, {
+    method: 'POST',
+    body: JSON.stringify(params),
+  }),
 
 
   // 流程更新

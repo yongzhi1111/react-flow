@@ -712,7 +712,7 @@ function ConnectionLineFlow () {
     setNodes((nds) => applyNodeChanges(filteredChanges, nds));
   }, [nodes, drawerOpen]);
 
-  const onEdgesChange = useCallback((changes) => {
+  const onEdgesChange = useCallback(async (changes) => {
     const filteredChanges = changes.filter(change => {
       if (change.type === 'remove' && drawerOpen) {
         console.log('Cannot delete edges while drawer is open');
@@ -722,8 +722,25 @@ function ConnectionLineFlow () {
     });
     console.log('onEdgesChange: ', filteredChanges);
     
-    setEdges((eds) => applyEdgeChanges(filteredChanges, eds));
-  }, [drawerOpen]);
+    // Calculate updated edges
+    const updatedEdges = applyEdgeChanges(filteredChanges, edges);
+    
+    // Update edges state
+    setEdges(updatedEdges);
+    
+    // Save flow after edge changes
+    try {
+      const flowData = buildFlowSubmitPayload({
+        nodes,
+        edges: updatedEdges,
+        flowId: currentFlowId,
+      });
+      console.log('Saving flow after edge changes:', flowData);
+      await api.flowUpdate(flowData);
+    } catch (error) {
+      console.error('Error saving flow after edge changes:', error);
+    }
+  }, [drawerOpen, nodes, edges, currentFlowId]);
 
   const addNode = React.useCallback(async (node, sourceNodeId, nodes2) => {
     // compute id and position (same logic as before)
@@ -1169,10 +1186,8 @@ function ConnectionLineFlow () {
 
 
   const onConnect = useCallback(
-    (params) => setEdges((eds) => {
-      // console.log('onConnect params:', params, eds);
-  
-
+    async (params) => {
+      // Create new edge
       const newEdge = { ...params, type: 'custom-edge', id: `${params.source}->${params.target}` };
 
       const srcNode = nodes.find(n => n.id === params.source);
@@ -1181,18 +1196,30 @@ function ConnectionLineFlow () {
       // 如果来源节点是 ifElseProcess 且为 branch handle（id 包含 -start-switch-），
       // 则仅清理该 ifElse 节点下其它 branch 绑定到相同 target 的旧连线，保留最新连接
       if (srcNode && srcNode.type === 'ifElseProcess' && params.sourceHandle && params.sourceHandle.indexOf('-start-switch-') !== -1) {
-        // filtered = eds.filter(e => !(e.source === params.source && e.target === params.target && e.sourceHandle !== params.sourceHandle));
-        filtered = eds.filter(e => e.id !== newEdge.id);
+        filtered = edges.filter(e => e.id !== newEdge.id);
       } else {
         // 其它情况保留原有行为：移除指向相同 target 的旧连线
-        filtered = eds
-        // .filter(e => e.target !== newEdge.target);
+        filtered = edges;
       }
 
+      // Update edges
+      const updatedEdges = [...filtered, newEdge].map((e) => ({ ...e, type: e.type || 'custom-edge' }));
+      setEdges(updatedEdges);
 
-      return [...filtered, newEdge].map((e) => ({ ...e, type: e.type || 'custom-edge',   }));
-    }),
-    [nodes]
+      // Save flow after edge creation
+      try {
+        const flowData = buildFlowSubmitPayload({
+          nodes,
+          edges: updatedEdges,
+          flowId: currentFlowId,
+        });
+        console.log('Saving flow after edge creation:', flowData);
+        await api.flowUpdate(flowData);
+      } catch (error) {
+        console.error('Error saving flow after edge creation:', error);
+      }
+    },
+    [nodes, edges, currentFlowId]
   );
 
   const onNodeClick = useCallback((event, node) => {
@@ -1481,6 +1508,7 @@ function ConnectionLineFlow () {
       }
 
 
+    
     }else if(node.type === 'targetDataset') {
         // const custom = node.data?.custom || node.data?.config.mdmDataSetId &&  fn(dataSetOptions, node.data.config.mdmDataSetId)
 
@@ -1616,6 +1644,43 @@ function ConnectionLineFlow () {
     }else if(node.type === 'mysqlTableSource' || node.type === 'mysqlTableTarget' || 
              node.type === 'mongoCollectionSource' || node.type === 'mongoCollectionTarget' || 
              node.type === 'fileSource' || node.type === 'fileTarget') {
+
+
+      if(node.type === 'mongoCollectionSource' || node.type === 'mysqlTableSource') {
+        // 调用api.getNodeDetail获取节点详情
+        if(node.data?.nodeId) {
+          api.getNodeDetail({ nodeId: node.data.nodeId }).then(res => {
+            console.log('节点详情数据:', res);
+            // 处理返回的outputFields
+            const outputFields = res?.data?.outputFields ? JSON.parse(res?.data?.outputFields) || [] :  [];
+            setTableTag(outputFields.map(i => i.code || ''));
+            
+            // 如果有fieldMapping，设置表格数据
+            const fieldMapping = res?.data?.config?.fieldMapping || [];
+            setTableData(fieldMapping.map(i => ({
+              name: i.targetField,
+              sourceField: i.sourceField,
+            })) || []);
+          }).catch(error => {
+            console.error('获取节点详情失败:', error);
+          });
+        }
+        
+        // 加载数据源表字段
+        if(node.type === 'mysqlTableSource' && node.data?.config?.dexSourceId && node.data?.config?.tableName) {
+          api.getMySQLTableFields(node.data.config.dexSourceId, node.data.config.tableName).then(response => {
+            setDataSourceTableFields(response?.data || []);
+          });
+        }
+        
+        // 加载MongoDB集合字段
+        if(node.type === 'mongoCollectionSource' && node.data?.config?.dexSourceId && node.data?.config?.tableName) {
+          api.getMongoCollectionFields(node.data.config.dexSourceId, node.data.config.tableName).then(response => {
+            setDataSourceTableFields(response?.data || []);
+          });
+        }
+      }
+
       // 处理数据库和文件节点
       if(node.data?.config) {
         formDatas = {
@@ -2555,7 +2620,8 @@ function ConnectionLineFlow () {
         dataSourceTableFields={dataSourceTableFields}
         setDataSourceTableFields={setDataSourceTableFields}
       />
-      <LogModal />
+       {LogModal()}
+      {/* <LogModal /> */}
     </>
   );
 };
