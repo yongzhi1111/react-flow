@@ -318,7 +318,7 @@ import {
             strokeWidth: (selected || highlighted) ? 2.2 : 1.8,
           }}
         />
-        <g pointerEvents="none" opacity={selected || highlighted ? 1 : 0.8}>
+        {/* <g pointerEvents="none" opacity={selected || highlighted ? 1 : 0.8}>
           <path
             d="M -8 -5 L 0 0 L -8 5"
             fill="none"
@@ -334,7 +334,7 @@ import {
               rotate="auto"
             />
           </path>
-        </g>
+        </g> */}
         <EdgeLabelRenderer>
           <div
             style={{
@@ -695,24 +695,40 @@ function ConnectionLineFlow () {
   const ruleType = Form.useWatch('ruleType', form);
 
   const onNodesChange = useCallback((changes) => {
+    // 过滤掉不需要处理的变化
     const filteredChanges = changes.filter(change => {
       if (change.type === 'remove') {
         if (drawerOpen) {
           console.log('Cannot delete while drawer is open');
           return false;
         }
-        const nodeToRemove = nodes.find(n => n.id === change.id);
-        if (nodeToRemove && nodeToRemove.type === 'start') {
-          console.log('Cannot delete start node');
-          return false;
-        }
+        // 不需要在拖动时检查节点类型，只在删除操作时检查
+        // 因为拖动操作的change.type不是'remove'
       }
       return true;
     });
-    setNodes((nds) => applyNodeChanges(filteredChanges, nds));
-  }, [nodes, drawerOpen]);
+    
+    // 只在有实际变化时更新状态
+    if (filteredChanges.length > 0) {
+      setNodes((nds) => {
+        // 对于删除操作，在回调中检查节点类型
+        const finalChanges = filteredChanges.filter(change => {
+          if (change.type === 'remove') {
+            const nodeToRemove = nds.find(n => n.id === change.id);
+            if (nodeToRemove && nodeToRemove.type === 'start') {
+              console.log('Cannot delete start node');
+              return false;
+            }
+          }
+          return true;
+        });
+        return applyNodeChanges(finalChanges, nds);
+      });
+    }
+  }, [drawerOpen]);
 
   const onEdgesChange = useCallback(async (changes) => {
+    // 过滤掉不需要处理的变化
     const filteredChanges = changes.filter(change => {
       if (change.type === 'remove' && drawerOpen) {
         console.log('Cannot delete edges while drawer is open');
@@ -720,25 +736,29 @@ function ConnectionLineFlow () {
       }
       return true;
     });
-    console.log('onEdgesChange: ', filteredChanges);
     
-    // Calculate updated edges
-    const updatedEdges = applyEdgeChanges(filteredChanges, edges);
-    
-    // Update edges state
-    setEdges(updatedEdges);
-    
-    // Save flow after edge changes
-    try {
-      const flowData = buildFlowSubmitPayload({
-        nodes,
-        edges: updatedEdges,
-        flowId: currentFlowId,
-      });
-      console.log('Saving flow after edge changes:', flowData);
-      await api.flowUpdate(flowData);
-    } catch (error) {
-      console.error('Error saving flow after edge changes:', error);
+    // 只在有实际变化时处理
+    if (filteredChanges.length > 0) {
+      console.log('onEdgesChange: ', filteredChanges);
+      
+      // Calculate updated edges
+      const updatedEdges = applyEdgeChanges(filteredChanges, edges);
+      
+      // Update edges state
+      setEdges(updatedEdges);
+      
+      // Save flow after edge changes
+      try {
+        const flowData = buildFlowSubmitPayload({
+          nodes,
+          edges: updatedEdges,
+          flowId: currentFlowId,
+        });
+        console.log('Saving flow after edge changes:', flowData);
+        await api.flowUpdate(flowData);
+      } catch (error) {
+        console.error('Error saving flow after edge changes:', error);
+      }
     }
   }, [drawerOpen, nodes, edges, currentFlowId]);
 
@@ -853,7 +873,7 @@ function ConnectionLineFlow () {
     });
   }, [nodes, edges, currentFlowId]);
 
-  const updateNode = async (id, partial) => {
+  const updateNode = useCallback(async (id, partial) => {
     setNodes((nds) => nds.map((n) => {
       if (n.id !== id) return n;
       const next = {
@@ -886,7 +906,7 @@ function ConnectionLineFlow () {
 
       return next;
     }));
-  };
+  }, [currentFlowId]);
 
   const createNodeByType = useCallback((type, position) => {
     const libraryItem = NODE_LIBRARY.find((item) => item.type === type);
@@ -949,7 +969,7 @@ function ConnectionLineFlow () {
     reactFlowInstanceRef.current = instance;
   }, []);
 
-  const copyNode = async (pro) => {
+  const copyNode = useCallback(async (pro) => {
     // 找到源节点（使用当前闭包中的 nodes 状态）
     // const src = nodes.find(n => n.id === id);
     if (!pro) return;
@@ -972,9 +992,9 @@ function ConnectionLineFlow () {
 
     // 同步地更新节点状态
     setNodes((nds) => [...nds, newNode]);
-  };
+  }, []);
 
-  const deleteNode = ({ id, data, type, nodeId }) => {
+  const deleteNode = useCallback(({ id, data, type, nodeId }) => {
     if (type === 'start') {
       return;
     }
@@ -997,9 +1017,9 @@ function ConnectionLineFlow () {
     if (backendNodeId) {
       api.deleteNode({ nodeId: backendNodeId });
     }
-  };
+  }, [form]);
 
-  const runNode = async (nodeId, nodeData, nodeType) => {
+  const runNode = useCallback(async (nodeId, nodeData, nodeType) => {
     console.log('Running node:', nodeId, nodeData, nodeType);
     
     // 构建运行节点的请求参数
@@ -1083,10 +1103,10 @@ function ConnectionLineFlow () {
       alert('节点运行失败，请检查配置！');
       throw error;
     }
-  };
+  }, [currentFlowId]);
 
   // 获取流程日志
-  const fetchFlowLog = async (nodeId) => {
+  const fetchFlowLog = useCallback(async (nodeId) => {
     setLogLoading(true);
     try {
       const response = await api.getFlowLog({
@@ -1148,16 +1168,16 @@ function ConnectionLineFlow () {
     } finally {
       setLogLoading(false);
     }
-  };
+  }, []);
 
   // 打开日志模态框
-  const openLogModal = (nodeId) => {
+  const openLogModal = useCallback((nodeId) => {
     fetchFlowLog(nodeId);
-  };
+  }, [fetchFlowLog]);
 
-  const StartWrapper = (props) => <CustomNodeStart {...props} onAddNode={addNode} type={props.type} onCopyNode={() => copyNode(props)} onDeleteNode={() => deleteNode(props)} />;
+  const StartWrapper = useCallback((props) => <CustomNodeStart {...props} onAddNode={addNode} type={props.type} onCopyNode={() => copyNode(props)} onDeleteNode={() => deleteNode(props)} />, [addNode, copyNode, deleteNode]);
 
-  const wrap = (Comp) => (props) => <Comp {...props}  onAddNode={addNode} onUpdateNode={updateNode} type={props.type} onCopyNode={() => copyNode(props)} onDeleteNode={() => deleteNode(props)} onRunNode={() => runNode(props.id, props.data, props.type)} onOpenLogModal={() => openLogModal(props.data?.nodeId || props.id)} />;
+  const wrap = useCallback((Comp) => (props) => <Comp {...props}  onAddNode={addNode} onUpdateNode={updateNode} type={props.type} onCopyNode={() => copyNode(props)} onDeleteNode={() => deleteNode(props)} onRunNode={() => runNode(props.id, props.data, props.type)} onOpenLogModal={() => openLogModal(props.data?.nodeId || props.id)} />, [addNode, updateNode, copyNode, deleteNode, runNode, openLogModal]);
 
   const nodeTypes = useMemo(() => ( {
     // custom: wrap(CustomNode),
@@ -1178,7 +1198,7 @@ function ConnectionLineFlow () {
     scriptProcess: wrap(CustomNodeDefault),
     ifElseProcess: wrap(CustomNodeDefault),
     llmProcess: wrap(CustomNodeDefault),
-  }), [ nodes]);
+  }), [ addNode, updateNode, copyNode, deleteNode, runNode, openLogModal ]);
 
   // Memoize edgeTypes so its reference stays stable across renders.
   // Otherwise ReactFlow may treat a new object as a change and re-register edge types
@@ -2079,14 +2099,20 @@ function ConnectionLineFlow () {
   // 当有悬停节点时，为与其相关的连线附加 highlighted 标记
   const displayEdges = useMemo(() => {
     if (!hoveredNodeId) return edges;
-    return edges.map((edge) => ({
-      ...edge,
-      data: {
-        ...edge.data,
-        // only set highlighted to true for connected edges; do not clear existing highlights
-        highlighted: edge.data?.highlighted || edge.source === hoveredNodeId || edge.target === hoveredNodeId,
-      },
-    }));
+    return edges.map((edge) => {
+      // 只有当连线与悬停节点相关时才创建新对象
+      if (edge.source === hoveredNodeId || edge.target === hoveredNodeId) {
+        return {
+          ...edge,
+          data: {
+            ...edge.data,
+            highlighted: true,
+          },
+        };
+      }
+      // 否则返回原对象，避免不必要的重新创建
+      return edge;
+    });
   }, [edges, hoveredNodeId]);
 
   // 刷新日志状态
@@ -2567,6 +2593,9 @@ function ConnectionLineFlow () {
               onNodeMouseEnter={onNodeMouseEnter}
               onNodeMouseLeave={onNodeMouseLeave}
               fitView
+              onlyRenderVisibleElements={true}
+              className="flow-canvas"
+              style={{ background: '#f5f5f5' }}
             >
               <Background />
               <Controls />

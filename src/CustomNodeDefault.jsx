@@ -1,10 +1,10 @@
-import React, { memo, useState, useEffect } from 'react';
+import React, { memo, useState, useEffect, useCallback } from 'react';
 import { Handle, Position, useUpdateNodeInternals } from '@xyflow/react';
 
 import { Popover, Button, Dropdown, Space, Typography, Drawer, Tooltip } from 'antd';
 import { EllipsisOutlined, PlayCircleOutlined, LoadingOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 
-export const HandleStart = (props) => {
+export const HandleStart = React.memo((props) => {
   const { data, isConnectable, onCopyNode, onDeleteNode, onAddNode, onUpdateNode, type, isEdge, edgeFn } = props;
   const [open, setOpen1] = useState(false);
 
@@ -1227,9 +1227,9 @@ export const HandleStart = (props) => {
         </Handle>
     </>
   )
-}
+})
 
-const HandleEnd = (props) => {
+const HandleEnd = React.memo((props) => {
     const { data, isConnectable, onCopyNode, onDeleteNode } = props;
     
   return (
@@ -1247,7 +1247,7 @@ const HandleEnd = (props) => {
       </Handle>
     </>
   )
-}
+});
 
 export const defaultColors = {
   sourceDataset: '#2B7FFF',
@@ -1276,7 +1276,7 @@ const DEFAULT_HANDLE_STYLE = {
 };
 
 
-const Operate = ({ del, onCopyNode, onDeleteNode, onOpenLogModal }) => {
+const Operate = React.memo(({ del, onCopyNode, onDeleteNode, onOpenLogModal }) => {
   const items = [
     { key: '1', label: '复制' },
     { key: '2', label: '删除' },
@@ -1318,7 +1318,7 @@ const Operate = ({ del, onCopyNode, onDeleteNode, onOpenLogModal }) => {
       </Space>
     </Dropdown>
   );
-}
+});
 
 
 const jiaSvg = <svg t="1772521474781" className="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="3271" width="8" height="8"><path d="M469.333333 469.333333V170.666667h85.333334v298.666666h298.666666v85.333334h-298.666666v298.666666h-85.333334v-298.666666H170.666667v-85.333334h298.666666z" fill="#444444" p-id="3272"></path></svg>
@@ -1466,7 +1466,7 @@ export const getNodeIcon = (type) => {
 };
 
 
-const CustomNodeDefault = memo((props) => {
+const CustomNodeDefault = React.memo((props) => {
   const { data, isConnectable, onCopyNode, onDeleteNode, type, onAddNode, onRunNode, onOpenLogModal } = props;
   const { id } = props;
   const updateNodeInternals = useUpdateNodeInternals();
@@ -1479,7 +1479,7 @@ const CustomNodeDefault = memo((props) => {
     }
   }, [id, data?.config?.branches]);
 
-  const handleRunNode = async (e) => {
+  const handleRunNode = useCallback(async (e) => {
     // 阻止事件冒泡，避免触发节点选择
     e.stopPropagation();
     
@@ -1499,7 +1499,7 @@ const CustomNodeDefault = memo((props) => {
         setIsRunning(false);
       }
     }
-  };
+  }, [id, data, type, onRunNode]);
 
   const getStatusIcon = () => {
     switch (executionStatus) {

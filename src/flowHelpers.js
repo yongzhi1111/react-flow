@@ -98,6 +98,11 @@ const normalizeNodeData = (node) => {
     if (node.config) {
       data.config = JSON.parse(node.config);
     }
+
+    if(node.nodeType === 'fileSource'){
+      data.fileSourceDTO = node?.fileSourceDTO || null;
+    }
+
     if (node.outputFields) {
       data.outputFields = JSON.parse(node.outputFields);
     }

@@ -1089,15 +1089,15 @@ const NodeConfigDrawer = ({
               <Form.Item 
                 name="filePath" 
                 label="文件路径" 
-                hidden={storageType === '2'}
+                hidden={storageType == '2'}
               >
                 <Input placeholder="请输入文件路径" />
               </Form.Item>
-              
+              {/* {JSON.stringify(selectedNode.data)}-- */}
               <Form.Item 
                 name="uploadFile" 
                 label="上传文件" 
-                hidden={storageType !== '2'}
+                hidden={storageType != '2'}
               >
                 <Upload
                   action={() => {
@@ -1111,6 +1111,11 @@ const NodeConfigDrawer = ({
                   }}
                   maxCount={1}
                   accept=".xlsx,.xls"
+                  fileList={selectedNode?.data?.fileSourceDTO ? [{ 
+                    uid: selectedNode?.data?.fileSourceDTO?.fileName?.fileName || '', 
+                    name: selectedNode?.data?.fileSourceDTO?.filePath || '', 
+                    status: 'done' 
+                  }] : []}
                   onChange={(info) => {
                     console.log('文件上传:', info);
                     
